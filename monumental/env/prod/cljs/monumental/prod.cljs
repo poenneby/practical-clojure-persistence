@@ -1,5 +1,5 @@
-(ns monumental-front.prod
-  (:require [monumental-front.core :as core]))
+(ns monumental.prod
+  (:require [monumental.core :as core]))
 
 ;;ignore println statements in prod
 (set! *print-fn* (fn [& _]))

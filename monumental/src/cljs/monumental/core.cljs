@@ -1,4 +1,4 @@
-(ns monumental-front.core
+(ns monumental.core
     (:require [reagent.core :as reagent :refer [atom]]
               [reagent.session :as session]
               [reitit.frontend :as reitit]

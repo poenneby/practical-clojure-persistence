@@ -1,12 +1,12 @@
-(ns monumental-front.handler
+(ns monumental.handler
   (:require [reitit.ring :as reitit-ring]
-            [monumental-front.middleware :refer [middleware]]
+            [monumental.middleware :refer [middleware]]
             [hiccup.page :refer [include-js include-css html5]]
             [config.core :refer [env]]))
 
 (def mount-target
   [:div#app
-   [:h2 "Welcome to monumental-front"]
+   [:h2 "Welcome to monumental"]
    [:p "please wait while Figwheel is waking up ..."]
    [:p "(Check the js console for hints if nothing exсiting happens.)"]])
 

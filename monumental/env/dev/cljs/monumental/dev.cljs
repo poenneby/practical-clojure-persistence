@@ -1,6 +1,6 @@
-(ns ^:figwheel-no-load monumental-front.dev
+(ns ^:figwheel-no-load monumental.dev
   (:require
-    [monumental-front.core :as core]
+    [monumental.core :as core]
     [devtools.core :as devtools]))
 
 (devtools/install!)

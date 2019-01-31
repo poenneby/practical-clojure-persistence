@@ -1,4 +1,4 @@
-(ns monumental-front.middleware
+(ns monumental.middleware
   (:require [ring.middleware.defaults :refer [site-defaults wrap-defaults]]))
 
 (def middleware

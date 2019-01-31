@@ -1,5 +1,5 @@
-(ns monumental-front.server
-    (:require [monumental-front.handler :refer [app]]
+(ns monumental.server
+    (:require [monumental.handler :refer [app]]
               [config.core :refer [env]]
               [ring.adapter.jetty :refer [run-jetty]])
     (:gen-class))

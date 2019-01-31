@@ -1,4 +1,4 @@
-(ns monumental-front.util)
+(ns monumental.util)
 
 (defn foo-cljc [x]
   "I don't do a whole lot."

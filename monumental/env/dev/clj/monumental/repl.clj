@@ -1,5 +1,5 @@
-(ns monumental-front.repl
-  (:use monumental-front.handler
+(ns monumental.repl
+  (:use monumental.handler
         figwheel-sidecar.repl-api
         ring.server.standalone
         [ring.middleware file-info file]))

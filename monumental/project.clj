@@ -1,4 +1,4 @@
-(defproject monumental-front "0.1.0-SNAPSHOT"
+(defproject monumental "0.1.0-SNAPSHOT"
   :description "FIXME: write description"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
@@ -25,12 +25,12 @@
             [lein-asset-minifier "0.2.7"
              :exclusions [org.clojure/clojure]]]
 
-  :ring {:handler monumental-front.handler/app
-         :uberwar-name "monumental-front.war"}
+  :ring {:handler monumental.handler/app
+         :uberwar-name "monumental.war"}
 
   :min-lein-version "2.5.0"
-  :uberjar-name "monumental-front.jar"
-  :main monumental-front.server
+  :uberjar-name "monumental.jar"
+  :main monumental.server
   :clean-targets ^{:protect false}
   [:target-path
    [:cljsbuild :builds :app :compiler :output-dir]
@@ -54,9 +54,9 @@
               :pretty-print  false}}
             :app
             {:source-paths ["src/cljs" "src/cljc" "env/dev/cljs"]
-             :figwheel {:on-jsload "monumental-front.core/mount-root"}
+             :figwheel {:on-jsload "monumental.core/mount-root"}
              :compiler
-             {:main "monumental-front.dev"
+             {:main "monumental.dev"
               :asset-path "/js/out"
               :output-to "target/cljsbuild/public/js/app.js"
               :output-dir "target/cljsbuild/public/js/out"
@@ -76,11 +76,11 @@
    :nrepl-middleware [cider.piggieback/wrap-cljs-repl
                       ]
    :css-dirs ["resources/public/css"]
-   :ring-handler monumental-front.handler/app}
+   :ring-handler monumental.handler/app}
 
 
 
-  :profiles {:dev {:repl-options {:init-ns monumental-front.repl}
+  :profiles {:dev {:repl-options {:init-ns monumental.repl}
                    :dependencies [[cider/piggieback "0.3.10"]
                                   [binaryage/devtools "0.9.10"]
                                   [ring/ring-mock "0.3.2"]

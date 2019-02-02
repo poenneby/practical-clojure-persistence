@@ -1,10 +1,16 @@
 (ns monumental.handler
   (:require [reitit.ring :as reitit-ring]
             [monumental.middleware :refer [middleware]]
+            [monumental.util :refer :all]
             [reitit.coercion.spec :as rcs]
             [muuntaja.core :as m]
+            [clojure.java.io :as io]
             [hiccup.page :refer [include-js include-css html5]]
+            [cheshire.core :refer [parse-string generate-string]]
             [config.core :refer [env]]))
+
+
+(defonce monuments (parse-string (slurp (io/resource "firstHundred.json")) true))
 
 (def mount-target
   [:div#app
@@ -37,7 +43,7 @@
  [{{{:keys [region]} :query} :parameters}]
                                   {:status 200
                                    :headers {"Content-Type" "application/json"}
-                                   :body {:total region}})
+                                   :body (generate-string (monuments-by-region monuments region))})
 
 (def app
   (reitit-ring/ring-handler

@@ -1,6 +1,5 @@
-(ns monumental.util)
+(ns monumental.util
+  (:require [clojure.string :as str]))
 
-(defn foo-cljc [x]
-  "I don't do a whole lot."
-  [x]
-  (println x "Hello, World!"))
+(defn monuments-by-region [monuments region]
+  (filter (fn [m] (str/starts-with? (:REG m) region)) monuments))

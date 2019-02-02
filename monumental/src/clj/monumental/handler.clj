@@ -1,12 +1,14 @@
 (ns monumental.handler
   (:require [reitit.ring :as reitit-ring]
             [monumental.middleware :refer [middleware]]
+            [reitit.coercion.spec :as rcs]
+            [muuntaja.core :as m]
             [hiccup.page :refer [include-js include-css html5]]
             [config.core :refer [env]]))
 
 (def mount-target
   [:div#app
-   [:h2 "Welcome to monumental"]
+   [:h1 "Monumental"]
    [:p "please wait while Figwheel is waking up ..."]
    [:p "(Check the js console for hints if nothing exсiting happens.)"]])
 
@@ -30,13 +32,24 @@
    :headers {"Content-Type" "text/html"}
    :body (loading-page)})
 
+
+(defn monument-api-handler
+ [{{{:keys [region]} :query} :parameters}]
+                                  {:status 200
+                                   :headers {"Content-Type" "application/json"}
+                                   :body {:total region}})
+
 (def app
   (reitit-ring/ring-handler
    (reitit-ring/router
-    [["/" {:get {:handler index-handler}}]
-     ["/monuments/:monument-id" {:get {:handler index-handler
-                                      :parameters {:path {:item-id int?}}}}]]
-    {:data {:middleware middleware}})
+    [
+     ["/" {:get {:handler index-handler}}]
+     ["/api/search" {:get {:parameters {:query {:region string?}}
+                       :handler monument-api-handler}}]]
+    {:data {
+            :muuntaja m/instance
+            :coercion rcs/coercion
+            :middleware middleware}})
    (reitit-ring/routes
     (reitit-ring/create-resource-handler {:path "/" :root "/public"})
     (reitit-ring/create-default-handler))))

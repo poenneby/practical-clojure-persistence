@@ -27,7 +27,7 @@
 
 (defn fetch-monuments [region]
   (swap! state assoc :search region)
-  (GET "http://localhost:3000/api/search" {:params {:region region}
+  (GET "/api/search" {:params {:region region}
                                            :response-format :json
                                            :keywords? true
                                            :handler #(swap! state assoc :monuments %)}))

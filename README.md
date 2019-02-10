@@ -153,7 +153,8 @@ We can get all entities from db
 ```
 Here we have to bind `?e` to at least one field in order to avoid a table scan
 
-The last expression `(d/db conn)` resolves to the latest database **value** at the very instant we run the query.
+The last expression `(d/db conn)` resolves to the latest database **value** at the very instant we run the query. As you may have guessed
+we can also get historic database values. Datomic never forget...
 
 The result is a vector of entity ids:
 `[[17592186045418] [17592186045419] [17592186045420]]`
@@ -175,7 +176,7 @@ If we wanted to find all names of monuments in "Pays de la Loire" we could write
 (d/q monuments-reg-q (d/db conn))
 ```
 
-But bearing in mind the usage of our application we will have to find regions that contains a certain search term:
+But bearing in mind the usage of our application we will have to find regions that *contains* a certain search term:
 
 ```
 (def monuments-reg-contains-q '[:find ?monument-name
@@ -202,7 +203,7 @@ bin/transactor config/samples/dev-transactor-template.properties
 
 ### Load the monument data
 
-Head over to the **load-monuments** project to load the complete set of monuments data:
+Clone the **load-monuments** project and follow the instructions to load the complete set of monuments data:
 
 ```
 git clone https://github.com/poenneby/load-monuments
@@ -221,9 +222,9 @@ And in another terminal window, start the Datomic console:
 bin/console -p 8080 dev datomic:dev://localhost:4334/
 ```
 
-The console can be accessed at (http://localhost:8080/browse).
+The console can be accessed at http://localhost:8080/browse.
 
-From here we can verify the number of monuments loaded.
+From here we can for example verify the number of monuments loaded.
 
 Select the monumental database from the dropdown and run the following query.
 ```
@@ -235,20 +236,20 @@ Select the monumental database from the dropdown and run the following query.
 
 
 
-## Integrating Datomic into Monumental
+## Using Datomic as a data source for Monumental
 
 Given you have successfully loaded the monument data we should now have around 45000 monuments
 in our database.
 
 Some ideas and application requirements comes to mind:
- - Seamlessly change our datasource from a file to a Datomic database
+ - Seamlessly change our data source from a file to a Datomic database
  - We will have to limit search results
  - What if people wanted to search for monuments by their name?
 
 
 ### REPL driven development
 
-Back in the REPL, we will build up the function.
+Back in the REPL of `monumental-api`, we will figure out how to load the data and expose it via the API.
 
 First make sure we have a connection to our database:
 ```
@@ -302,7 +303,7 @@ We also need to `pull` each entity to get the fields we want.
 ```
 
 
-And once we have all the attributes of monuments we must transform them to the format our front end is expecting
+And once we have all the attributes of the monuments we must transform them to the format our front end is expecting
 
 We write a little function for that:
 
@@ -318,7 +319,8 @@ We write a little function for that:
                 ]] monument))
 ```
 Using list comprehension we iterate over all monuments that have the `:monument/ref` attribute set. We are obliged to `take` out
-of the collection because it is "lazy". For each monument we reconstruct a new map of key/values as required for the front end.
+of the collection because it is "lazy". And we `take-while` the `ref` attribute of the monument is not empty.
+For each monument we reconstruct a new map of key/values as required for the front end.
 
 Putting it all together we get the following function definition:
 
@@ -329,7 +331,7 @@ Putting it all together we get the following function definition:
       (transform monuments)))
 ```
 
-Here is the complete code to put in `src/monumental/core.clj`
+And here is the complete code to put in `src/monumental/core.clj`
 
 ```
 (ns monumental.core
@@ -371,23 +373,29 @@ Here is the complete code to put in `src/monumental/core.clj`
       (transform monuments)))
 ```
 
-Try running the api and you should be getting results by region as before only now they come from our Datomic database!
+We also remove the the line that loads monuments from disk and change the route in `handler.clj` to match the new signature:
+
+```
+  (GET "/api/search" [search] (response (monuments-by-region search)))
+```
+
+Try starting the API and you should be getting results by region as before only now they come from our Datomic database!
 
 
 ```
 lein ring server-headless
 ```
 
-Open `http://localhost:3449`
+Open `http://localhost:3449` and you should be able to search for monuments by region as before!
 
 
-### More requirements
+## Unhappy users
 
-So we've switched our storage to Datomic but some users are still complaining.
+We have switched our monuments data source to Datomic but some users are still complaining.
 
 - "How am I supposed to find the Eiffel Tower already???"
 
-We need enable search by monument name!
+We need to enable search by monument name! (TICO)
 
 Users should be able to switch between region and monument name searching.
 
@@ -395,7 +403,100 @@ In the front-end we can do this with a radio button to switch between the fields
 
 And we can parameterize the search field in the back end too!
 
+### Back
 
-To be continued...
+We can generify the `monuments-by-region [search]` to `monuments-by [field search]` giving us the flexibility to pass in any valid field to search for.
 
+`src/monumental/core.clj`
+```
+(defn monuments-by [field search]
+    (let [monuments (for [eid (flatten (d/q entities-by (d/db conn) field search))]
+      (d/pull (d/db conn) '[*] eid))]
+      (transform monuments)))
+```
+
+And we add the field parameter to a new `entities-by` query:
+
+```
+(def entities-by '[:find (sample 10 ?e)
+                          :in $ ?field ?search
+                          :where
+                          [?e ?field ?reg]
+                          [(.contains ^String ?reg ?search)]])
+```
+
+And we decide that the api accepts a field query parameter `field=reg` so we need to translate `reg` into the schema attribute `:monument/reg`
+
+```
+(def schema-mappings '{:reg :monument/reg
+                       :tico :monument/tico})
+
+(defn monuments-by [field search]
+    (let [monuments (for [eid (flatten (d/q entities-by (d/db conn) ((keyword field) schema-mappings) search))]
+      (d/pull (d/db conn) '[*] eid))]
+      (transform monuments)))
+```
+The `field` argument gets transformed into a **keyword** in order to lookup the corresponding schema attribute name.
+
+Finally we modify the `handler` to use our new function:
+
+```
+  (GET "/api/search" [field search] (response (monuments-by field search)))
+```
+
+### Front
+
+We add a `selectedField` to our state and set it to `reg` by default.
+
+`src/cljs/monumental_front/core.cljs`
+```
+(defonce state (atom {:monuments []
+                      :search ""
+                      :selectedField "reg"}))
+```
+
+We then introduce a new `<search-option>` component which updates the `selectedField` state - This component can be reused for as many fields as we wish:
+```
+(defn set-search-field [searchField]
+  (swap! state assoc :selectedField searchField))
+
+(defn <search-option> [value]
+  [:div
+   [:input.searchRadio {:type "radio" :name "field" :id value :value value :checked (= value (:selectedField @state)) :on-change #(set-search-field value)} ]
+   [:label {:for value } value]])
+
+(defn <search> []
+  [:div [:div [:input.searchInput
+         {:placeholder (str "Search by " (:selectedField @state))
+          :value (:search @state)
+          :on-change #(fetch-monuments (-> % .-target .-value))}]
+   ]
+   [:div.searchType
+    (<search-option> "reg")
+    (<search-option> "tico")]])
+
+```
+
+The `selectedField` state is included in the query parameters when calling the api.
+
+```
+(defn fetch-monuments [search]
+  (swap! state assoc :search search)
+  (GET "http://localhost:3000/api/search" {:params {:field (:selectedField @state)  :search search}
+                                           :response-format :json
+                                           :keywords? true
+                                           :handler #(swap! state assoc :monuments %)}))
+```
+
+
+We can finally search for monuments by their name!! 🎉
+
+
+
+## Conclusion
+
+You have now got an idea of how Datomic works with practical example.
+
+We are of course only scratching the surface of what is possible with Datomic but I hope you have
+now got an idea of what you can achieve with relatively little code.
 

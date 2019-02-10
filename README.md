@@ -81,6 +81,8 @@ The command starting the peer-server created an in-memory database called `monum
 We can create a connection to the database using a configuration map:
 
 ```
+(require '[datomic.client.api :as d])
+
 (def cfg {:server-type :peer-server
                  :access-key "myaccesskey"
                  :secret "mysecret"
@@ -118,6 +120,9 @@ The schema is then transacted to the database:
 (d/transact conn {:tx-data monument-schema})
 ```
 
+In the result returned we can see details about the `:db-before` and `:db-after` the transaction. We also note that the schema is data in the form of `datoms` - facts at a certain point in time.
+
+
 Then we put some data in the database
 
 ```
@@ -142,15 +147,16 @@ And just like before we transact but with the argument `first-monuments`
 
 With data in place we can run some queries. Datomic uses its' own query language **Datalog** which is heavily inspired by Prolog.
 
-Get all entities from db
+We can get all entities from db
 ```
 (d/q '[:find ?e :where [?e :monument/ref]] (d/db conn))
 ```
 Here we have to bind `?e` to at least one field in order to avoid a table scan
 
-The last argument is the latest database **value** at the very instant we run the query.
+The last expression `(d/db conn)` resolves to the latest database **value** at the very instant we run the query.
 
-The result is a vector of entity ids
+The result is a vector of entity ids:
+`[[17592186045418] [17592186045419] [17592186045420]]`
 
 We can get any individual entity using the `pull` function.
 
@@ -164,9 +170,9 @@ If we wanted to find all names of monuments in "Pays de la Loire" we could write
 
 ```
 (def monuments-reg-q '[:find ?monument-name
-                            :where [?e v:monument/tico ?monument-name]
+                            :where [?e :monument/tico ?monument-name]
                                    [?e :monument/reg "Pays de la Loire"]])
-(d/q monuments-req-q (d/db conn))
+(d/q monuments-reg-q (d/db conn))
 ```
 
 But bearing in mind the usage of our application we will have to find regions that contains a certain search term:
@@ -175,40 +181,24 @@ But bearing in mind the usage of our application we will have to find regions th
 (def monuments-reg-contains-q '[:find ?monument-name
                                 :where [?e :monument/tico ?monument-name]
                                        [?e :monument/reg ?reg]
-                                       [(.contains ^String ?reg "Ile")]])
+                                       [(.contains ^String ?reg "Pays")]])
 (d/q monuments-reg-contains-q (d/db conn))
 
 ```
 
-At this point we are pretty happy with Datomic and that it will be suitable for our application.
-
-We step forward and run a Datomic instance in `dev` mode and loading all the monuments.
-
+Using Datomic from the REPL has given us a basic idea of how it works and it's time to get more data loaded.
 
 
 ### Run Datomic in "dev" mode
 
 
-Start the transactor with the development transactor template - the dev template comes with a H2 database:
+First kill the running peer-server.
+
+Then start the transactor with the development transactor template - the dev template runs the transactor with a H2 database:
 
 ```
 bin/transactor config/samples/dev-transactor-template.properties
 ```
-
-Start a Peer Server pointing to your database:
-
-```
-bin/run -m datomic.peer-server -h localhost -p 8998 -a myaccesskey,mysecret -d monumental,datomic:dev://localhost:4334/monumental
-```
-
-Start the console:
-
-```
-bin/console -p 8080 dev datomic:dev://localhost:4334/
-```
-
-The console can be useful for running and visualising queries.
-
 
 ### Load the monument data
 
@@ -218,74 +208,101 @@ Head over to the **load-monuments** project to load the complete set of monument
 git clone https://github.com/poenneby/load-monuments
 ```
 
-### Integrating Datomic into Monumental
+
+With the data loaded, in another terminal, start a Peer Server pointing to your database:
+
+```
+bin/run -m datomic.peer-server -h localhost -p 8998 -a myaccesskey,mysecret -d monumental,datomic:dev://localhost:4334/monumental
+```
+
+And in another terminal window, start the Datomic console:
+
+```
+bin/console -p 8080 dev datomic:dev://localhost:4334/
+```
+
+The console can be accessed at (http://localhost:8080/browse).
+
+From here we can verify the number of monuments loaded.
+
+Select the monumental database from the dropdown and run the following query.
+```
+[:find (count ?e)
+ :where
+ [?e :monument/ref]
+]
+```
+
+
+
+## Integrating Datomic into Monumental
 
 Given you have successfully loaded the monument data we should now have around 45000 monuments
 in our database.
 
 Some ideas and application requirements comes to mind:
- - Seamlessly change our datasource from a file to a datomic database
+ - Seamlessly change our datasource from a file to a Datomic database
  - We will have to limit search results
  - What if people wanted to search for monuments by their name?
 
-Open up core.clj of the monumental-api.
 
-We "require" the datomic client library
+### REPL driven development
 
+Back in the REPL, we will build up the function.
+
+First make sure we have a connection to our database:
 ```
-(ns monumental.core
-  (:require [clojure.string :as str]
-            [datomic.client.api :as d]))
+(require '[datomic.client.api :as d])
 
-```
-
-And then we can create a database connection just like before:
-
-```
 (def cfg {:server-type :peer-server
                  :access-key "myaccesskey"
                  :secret "mysecret"
                  :endpoint "localhost:8998"})
+
 (def client (d/client cfg))
+
 (def conn (d/connect client {:db-name "monumental"}))
+
 ```
 
-We want to fetch monuments which have regions matching our search term:
+To match the existing functionality we need to fetch monuments which have regions matching our search term:
 
 ```
 (def entities-by-reg '[:find ?e
-                :in $ ?search
-                :where
-                [?e :monument/reg ?reg]
-                [(.contains ^String ?reg ?search)]])
+                       :in $ ?search
+                       :where
+                       [?e :monument/reg ?reg]
+                       [(.contains ^String ?reg ?search)]])
 
 (d/q entities-by-reg (d/db conn) "Pays")
 ```
 
-The `in` clause allow us to do parameterized queries. $ is the db value passed to the query and ?search the search term passed.
+The `in` clause allow us to do parameterized queries. `$` is the db value passed to the query and `?search` the search term passed.
 
-But we also need to limit the results.
+But that brings back too many results so we need to limit them.
 
 ```
 (def entities-by-reg '[:find (sample 10 ?e)
-                :in $ ?search
-                :where
-                [?e :monument/reg ?reg]
-                [(.contains ^String ?reg ?search)]])
+                       :in $ ?search
+                       :where
+                       [?e :monument/reg ?reg]
+                       [(.contains ^String ?reg ?search)]])
 
 (d/q entities-by-reg (d/db conn) "Pays")
 ```
-The `sample` return a sample of max 10 distinct entities in the search results.
+The `sample` function return a maximum of 10 distinct entities in the search results.
 
 But again with this query we only get the entity ids in our query result.
 
-We further need to `pull` each entity to get the fields we want.
+We also need to `pull` each entity to get the fields we want.
 
 ```
-(d/pull (d/db conn) '[*] eid)
+(for [eid (flatten (d/q entities-by-reg (d/db conn) "Pays"))]
+      (d/pull (d/db conn) '[*] eid))
 ```
 
-And once we have all the attributes of monuments we must transform to the format our front end is expecting
+
+And once we have all the attributes of monuments we must transform them to the format our front end is expecting
 
 We write a little function for that:
 
@@ -308,11 +325,9 @@ Putting it all together we get the following function definition:
 ```
 (defn monuments-by-region [search]
     (let [monuments (for [eid (flatten (d/q entities-by-reg (d/db conn) search))]
-      (pull-entity eid))]
+      (d/pull (d/db conn) '[*] eid))]
       (transform monuments)))
 ```
-We query for entities by region, and the resulting vector of vectors are flattened before being iterated over to pull each individual
-entity followed by their transformation.
 
 Here is the complete code to put in `src/monumental/core.clj`
 
@@ -338,8 +353,6 @@ Here is the complete code to put in `src/monumental/core.clj`
                           [?e :monument/reg ?reg]
                           [(.contains ^String ?reg ?search)]])
 
-(defn pull-entity [eid]
-  (d/pull (d/db conn) '[*] eid))
 
 (defn transform [monuments]
   (for [m (take-while #(not (empty? (:monument/ref %))) monuments)
@@ -354,7 +367,7 @@ Here is the complete code to put in `src/monumental/core.clj`
 
 (defn monuments-by-region [search]
     (let [monuments (for [eid (flatten (d/q entities-by-reg (d/db conn) search))]
-      (pull-entity eid))]
+      (d/pull (d/db conn) '[*] eid))]
       (transform monuments)))
 ```
 

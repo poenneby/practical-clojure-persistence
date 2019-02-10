@@ -25,9 +25,9 @@
     (:path (reitit/match-by-name router route))))
 
 
-(defn fetch-monuments [region]
-  (swap! state assoc :search region)
-  (GET "http://localhost:3000/api/search" {:params {:region region}
+(defn fetch-monuments [search]
+  (swap! state assoc :search search)
+  (GET "http://localhost:3000/api/search" {:params {:search search}
                                            :response-format :json
                                            :keywords? true
                                            :handler #(swap! state assoc :monuments %)}))
@@ -36,7 +36,7 @@
   (filter (fn [monument] (= ref (:REF monument))) monuments))
 
 (defn <search> []
-  [:div [:input
+  [:div [:input.searchInput
          {:placeholder "Search by region ..."
           :value (:search @state)
           :on-change #(fetch-monuments (-> % .-target .-value))}]])

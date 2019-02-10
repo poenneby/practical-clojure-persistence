@@ -12,7 +12,7 @@
 (defonce monuments (parse-string (slurp (io/resource "firstHundred.json")) true))
 
 (defroutes app-routes
-  (GET "/api/search" [region] (response (monuments-by-region monuments region)))
+  (GET "/api/search" [search] (response (monuments-by-region monuments search)))
   (route/not-found "Not Found"))
 
 (def app (->

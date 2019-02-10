@@ -34,10 +34,19 @@ a:hover {
   text-decoration: underline;
 }
 
-input {
+.searchInput {
   width: 200px;
   padding: 10px;
   font-size: 18px;
+}
+
+.searchType {
+  width: 300px;
+  padding: 10px;
+}
+
+.searchRadio {
+  margin-right: 10px;
 }
 
 img {

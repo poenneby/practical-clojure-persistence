@@ -61,7 +61,7 @@ We got a copy of Datomic starter edition ready to go.
 Our api will connect to the peer server using the client library so we add the library dependency in **project.clj**
 
 `monumental-api/project.clj`
-```
+```clojure
 [com.datomic/client-pro "0.8.28"]
 ```
 
@@ -80,7 +80,7 @@ The command starting the peer-server created an in-memory database called `monum
 
 We can create a connection to the database using a configuration map:
 
-```
+```clojure
 (require '[datomic.client.api :as d])
 
 (def cfg {:server-type :peer-server
@@ -96,7 +96,7 @@ We can create a connection to the database using a configuration map:
 
 With a connection in hand we will start by declaring a schema for our monuments
 
-```
+```clojure
 (def monument-schema [{:db/ident :monument/ref
                           :db/valueType :db.type/string
                           :db/cardinality :db.cardinality/one
@@ -116,7 +116,7 @@ For each attribute we declare its' identity, type, cardinality and a helpful doc
 
 The schema is then transacted to the database:
 
-```
+```clojure
 (d/transact conn {:tx-data monument-schema})
 ```
 
@@ -125,7 +125,7 @@ In the result returned we can see details about the `:db-before` and `:db-after`
 
 Then we put some data in the database
 
-```
+```clojure
 (def first-monuments [{:monument/ref "PA00109152"
                        :monument/tico "Ch\u00e2teau de la Turmeli\u00e8re (ancien)"
                        :monument/reg "Pays de la Loire"}
@@ -141,14 +141,14 @@ Then we put some data in the database
 
 
 And just like before we transact but with the argument `first-monuments`
-```
+```clojure
 (d/transact conn {:tx-data first-monuments})
 ```
 
 With data in place we can run some queries. Datomic uses its' own query language **Datalog** which is heavily inspired by Prolog.
 
 We can get all entities from db
-```
+```clojure
 (d/q '[:find ?e :where [?e :monument/ref]] (d/db conn))
 ```
 Here we have to bind `?e` to at least one field in order to avoid a table scan
@@ -161,7 +161,7 @@ The result is a vector of entity ids:
 
 We can get any individual entity using the `pull` function.
 
-```
+```clojure
 (d/pull (d/db conn) '[*] 17592186045418)
 ```
 `'[*]` indicates that we want to return all attributes for this entity
@@ -169,7 +169,7 @@ We can get any individual entity using the `pull` function.
 
 If we wanted to find all names of monuments in "Pays de la Loire" we could write the following query:
 
-```
+```clojure
 (def monuments-reg-q '[:find ?monument-name
                             :where [?e :monument/tico ?monument-name]
                                    [?e :monument/reg "Pays de la Loire"]])
@@ -178,7 +178,7 @@ If we wanted to find all names of monuments in "Pays de la Loire" we could write
 
 But bearing in mind the usage of our application we will have to find regions that *contains* a certain search term:
 
-```
+```clojure
 (def monuments-reg-contains-q '[:find ?monument-name
                                 :where [?e :monument/tico ?monument-name]
                                        [?e :monument/reg ?reg]
@@ -227,7 +227,7 @@ The console can be accessed at http://localhost:8080/browse.
 From here we can for example verify the number of monuments loaded.
 
 Select the monumental database from the dropdown and run the following query.
-```
+```clojure
 [:find (count ?e)
  :where
  [?e :monument/ref]
@@ -252,7 +252,7 @@ Some ideas and application requirements comes to mind:
 Back in the REPL of `monumental-api`, we will figure out how to load the data and expose it via the API.
 
 First make sure we have a connection to our database:
-```
+```clojure
 (require '[datomic.client.api :as d])
 
 (def cfg {:server-type :peer-server
@@ -268,7 +268,7 @@ First make sure we have a connection to our database:
 
 To match the existing functionality we need to fetch monuments which have regions matching our search term:
 
-```
+```clojure
 (def entities-by-reg '[:find ?e
                        :in $ ?search
                        :where
@@ -282,7 +282,7 @@ The `in` clause allow us to do parameterized queries. `$` is the db value passed
 
 But that brings back too many results so we need to limit them.
 
-```
+```clojure
 (def entities-by-reg '[:find (sample 10 ?e)
                        :in $ ?search
                        :where
@@ -297,7 +297,7 @@ But again with this query we only get the entity ids in our query result.
 
 We also need to `pull` each entity to get the fields we want.
 
-```
+```clojure
 (for [eid (flatten (d/q entities-by-reg (d/db conn) "Pays"))]
       (d/pull (d/db conn) '[*] eid))
 ```
@@ -307,7 +307,7 @@ And once we have all the attributes of the monuments we must transform them to t
 
 We write a little function for that:
 
-```
+```clojure
 (defn transform [monuments]
   (for [m (take-while #(not (empty? (:monument/ref %))) monuments)
           :let [monument {:REF (:monument/ref m)
@@ -324,7 +324,7 @@ For each monument we reconstruct a new map of key/values as required for the fro
 
 Putting it all together we get the following function definition:
 
-```
+```clojure
 (defn monuments-by-region [search]
     (let [monuments (for [eid (flatten (d/q entities-by-reg (d/db conn) search))]
       (d/pull (d/db conn) '[*] eid))]
@@ -333,7 +333,7 @@ Putting it all together we get the following function definition:
 
 And here is the complete code to put in `src/monumental/core.clj`
 
-```
+```clojure
 (ns monumental.core
   (:require [clojure.string :as str]
             [datomic.client.api :as d]))
@@ -375,7 +375,7 @@ And here is the complete code to put in `src/monumental/core.clj`
 
 We also remove the the line that loads monuments from disk and change the route in `handler.clj` to match the new signature:
 
-```
+```clojure
   (GET "/api/search" [search] (response (monuments-by-region search)))
 ```
 
@@ -408,7 +408,7 @@ And we can parameterize the search field in the back end too!
 We can generify the `monuments-by-region [search]` to `monuments-by [field search]` giving us the flexibility to pass in any valid field to search for.
 
 `src/monumental/core.clj`
-```
+```clojure
 (defn monuments-by [field search]
     (let [monuments (for [eid (flatten (d/q entities-by (d/db conn) field search))]
       (d/pull (d/db conn) '[*] eid))]
@@ -417,7 +417,7 @@ We can generify the `monuments-by-region [search]` to `monuments-by [field searc
 
 And we add the field parameter to a new `entities-by` query:
 
-```
+```clojure
 (def entities-by '[:find (sample 10 ?e)
                           :in $ ?field ?search
                           :where
@@ -427,7 +427,7 @@ And we add the field parameter to a new `entities-by` query:
 
 And we decide that the api accepts a field query parameter `field=reg` so we need to translate `reg` into the schema attribute `:monument/reg`
 
-```
+```clojure
 (def schema-mappings '{:reg :monument/reg
                        :tico :monument/tico})
 
@@ -440,7 +440,7 @@ The `field` argument gets transformed into a **keyword** in order to lookup the 
 
 Finally we modify the `handler` to use our new function:
 
-```
+```clojure
   (GET "/api/search" [field search] (response (monuments-by field search)))
 ```
 
@@ -449,14 +449,14 @@ Finally we modify the `handler` to use our new function:
 We add a `selectedField` to our state and set it to `reg` by default.
 
 `src/cljs/monumental_front/core.cljs`
-```
+```clojure
 (defonce state (atom {:monuments []
                       :search ""
                       :selectedField "reg"}))
 ```
 
 We then introduce a new `<search-option>` component which updates the `selectedField` state - This component can be reused for as many fields as we wish:
-```
+```clojure
 (defn set-search-field [searchField]
   (swap! state assoc :selectedField searchField))
 
@@ -479,7 +479,7 @@ We then introduce a new `<search-option>` component which updates the `selectedF
 
 The `selectedField` state is included in the query parameters when calling the api.
 
-```
+```clojure
 (defn fetch-monuments [search]
   (swap! state assoc :search search)
   (GET "http://localhost:3000/api/search" {:params {:field (:selectedField @state)  :search search}
@@ -495,7 +495,7 @@ We can finally search for monuments by their name!! 🎉
 
 ## Conclusion
 
-You have now got an idea of how Datomic works with practical example.
+You have now got a first hand experience building an application with Datomic through a practical example.
 
 We are of course only scratching the surface of what is possible with Datomic but I hope you have
 now got an idea of what you can achieve with relatively little code.

@@ -73,6 +73,7 @@ $DATOMIC_HOME/bin/run -m datomic.peer-server -h localhost -p 8998 -a myaccesskey
 
 With the dependency in place and the peer-server running we can start up a repl and try some database operations
 ```
+cd monumental-api
 lein repl
 ```
 
